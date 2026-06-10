@@ -1,0 +1,294 @@
+name: Seed Stockholm staging
+
+on:
+  push:
+    paths:
+      - '.github/workflows/seed-stockholm-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+env:
+  SOURCE_REPO: HELLOBOSA/hem-got
+  PUBLIC_DOMAIN: hemreform.se
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy Göteborg source and build Stockholm staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$PWD"
+          git clone --depth 1 "https://github.com/${SOURCE_REPO}.git" /tmp/hem-got
+          find "$work" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          rsync -a --exclude='.git' --exclude='CNAME' /tmp/hem-got/ "$work"/
+          rm -f CNAME
+          rm -rf .github/workflows
+          mkdir -p .github/workflows
+
+          python3 <<'PY'
+          from pathlib import Path
+          import html, json, re
+
+          root = Path('.')
+          today = '2026-06-10'
+
+          replacements = [
+              ('goteborg.hemreform.se', 'hemreform.se'),
+              ('goteborg', 'stockholm'),
+              ('Goteborg', 'Stockholm'),
+              ('GOTEBORG', 'STOCKHOLM'),
+              ('Göteborg', 'Stockholm'),
+              ('Gothenburg', 'Stockholm'),
+              ('Kungsportsavenyen 21, 411 36', 'Kungsgatan 9, 111 43'),
+              ('Kungsportsavenyen 21', 'Kungsgatan 9'),
+              ('411 36 Stockholm', '111 43 Stockholm'),
+              ('411 36', '111 43'),
+              ('Västra Götaland', 'Stockholms län'),
+              ('SE-O', 'SE-AB'),
+          ]
+
+          text_exts = {'.html', '.xml', '.txt', '.md', '.css', '.js', '.json'}
+          for p in root.rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in text_exts:
+                  continue
+              s = p.read_text(encoding='utf-8', errors='ignore')
+              for a, b in replacements:
+                  s = s.replace(a, b)
+              s = re.sub(r'\n<link rel="alternate" hreflang="en"[^\n]*>', '', s)
+              s = re.sub(r'\n<meta property="og:locale:alternate"[^\n]*>', '', s)
+              p.write_text(s, encoding='utf-8')
+
+          # Area and coordinate cleanup on homepage if present.
+          index = root / 'index.html'
+          if index.exists():
+              s = index.read_text(encoding='utf-8', errors='ignore')
+              s = s.replace('Hemreform Stockholm Stockholm', 'Hemreform Stockholm')
+              s = s.replace('57.7089', '59.3358').replace('11.9746', '18.0605')
+              s = s.replace('Vasastan, Linné, Majorna, Hisingen, Mölndal, Kungsbacka och närliggande områden', 'Norrmalm, Vasastan, Kungsholmen, Östermalm, Södermalm, Solna, Sundbyberg, Nacka och närliggande områden')
+              if '/blogg/' not in s:
+                  s = s.replace('<a href="#projekt" class="mono" style="font-size:13px;color:var(--ink)" data-en="Projects">Projekt</a>', '<a href="#projekt" class="mono" style="font-size:13px;color:var(--ink)" data-en="Projects">Projekt</a>\n        <a href="/blogg/" class="mono" style="font-size:13px;color:var(--ink)" data-en="Blog">Blogg</a>')
+                  s = s.replace('<a href="#projekt" data-en="Projects">Projekt</a>', '<a href="#projekt" data-en="Projects">Projekt</a>\n    <a href="/blogg/" data-en="Blog">Blogg</a>')
+              index.write_text(s, encoding='utf-8')
+
+          # Build common visual shell from homepage so blog/header/footer stay consistent.
+          home = index.read_text(encoding='utf-8', errors='ignore')
+          head_match = re.search(r'<head>(.*?)</head>', home, re.S)
+          header_match = re.search(r'<header class="nav" id="nav">.*?<main id="top">', home, re.S)
+          footer_match = re.search(r'</main>\s*(<footer.*?</html>)', home, re.S)
+          base_head_inner = head_match.group(1) if head_match else ''
+          header_html = header_match.group(0).replace('<main id="top">', '') if header_match else ''
+          footer_html = footer_match.group(1) if footer_match else '</body></html>'
+
+          extra_css = '''
+          <style>
+          .blog-hero{padding-top:clamp(118px,16vw,190px);padding-bottom:clamp(34px,5vw,64px)}
+          .blog-hero .display{font-size:clamp(2.3rem,10vw,8rem);max-width:1040px;overflow-wrap:break-word;word-break:break-word;hyphens:auto;letter-spacing:-.055em;line-height:.9;margin-top:24px}
+          .blog-lead{max-width:760px;color:var(--muted);font-size:clamp(1.08rem,2vw,1.35rem);margin-top:24px}
+          .blog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,2.4vw,30px)}
+          .blog-card{display:block;border-top:1px solid var(--line);padding-top:22px;min-width:0}.blog-card img{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;border-radius:8px;border:1px solid var(--line);margin-bottom:18px}.blog-card span{font-family:'Space Mono',monospace;color:var(--accent);font-size:11px;letter-spacing:.12em;text-transform:uppercase}.blog-card h2{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.35rem,2.2vw,2rem);line-height:1.02;letter-spacing:-.035em;margin-top:16px;overflow-wrap:break-word}.blog-card p{color:var(--muted);margin-top:12px}
+          .article-hero{padding-top:clamp(118px,16vw,180px)}.article h1{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(2rem,8vw,6.2rem);line-height:.9;letter-spacing:-.055em;max-width:1080px;overflow-wrap:break-word;hyphens:auto;margin-top:20px}.article-hero>p{max-width:780px;color:var(--muted);font-size:clamp(1.08rem,2vw,1.35rem);margin-top:24px}.article figure{margin-top:clamp(34px,6vw,70px)}.article figure img{width:100%;aspect-ratio:4/3;height:auto;object-fit:cover;border-radius:8px;border:1px solid var(--line)}.article-body{max-width:820px;padding:clamp(52px,8vw,94px) 0 clamp(90px,12vw,150px)}.article-body h2{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.65rem,3vw,2.35rem);line-height:1;letter-spacing:-.035em;margin-top:42px}.article-body p,.article-body li{color:var(--ink-soft);font-size:1.08rem;margin-top:14px}.article-body table{width:100%;border-collapse:collapse;margin-top:18px;border-top:1px solid var(--line)}.article-body th,.article-body td{text-align:left;padding:13px 0;border-bottom:1px solid var(--line);vertical-align:top}.article-body th{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}.article-cta{margin-top:54px;border-top:1px solid var(--line);padding-top:30px}.article-cta .btn{margin-top:26px}.article-pager{margin-top:46px;padding-top:26px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.article-pager a,.article-pager span{min-height:118px;display:flex;flex-direction:column;justify-content:space-between;padding:20px;border:1px solid var(--line);border-radius:8px;background:color-mix(in oklab,var(--bg-2) 58%,transparent)}.article-pager small{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}.article-pager strong{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(1.2rem,2vw,1.55rem);letter-spacing:-.03em;line-height:1.02}
+          @media(max-width:860px){.blog-grid{grid-template-columns:1fr}.blog-card{min-height:0}}@media(max-width:620px){.article-pager{grid-template-columns:1fr}}
+          </style>
+          '''
+
+          def make_head(title, desc, canonical, image='/images/featured.webp', kind='website'):
+              h = base_head_inner
+              h = re.sub(r'<title>.*?</title>', f'<title>{html.escape(title)}</title>', h, count=1, flags=re.S)
+              h = re.sub(r'<meta name="description" content="[^"]*">', f'<meta name="description" content="{html.escape(desc)}">', h, count=1)
+              h = re.sub(r'<link rel="canonical" href="[^"]*">', f'<link rel="canonical" href="{canonical}">', h, count=1)
+              h = re.sub(r'<link rel="alternate" hreflang="sv" href="[^"]*">', f'<link rel="alternate" hreflang="sv" href="{canonical}">', h, count=1)
+              h = re.sub(r'<meta property="og:type" content="[^"]*">', f'<meta property="og:type" content="{kind}">', h, count=1)
+              h = re.sub(r'<meta property="og:url" content="[^"]*">', f'<meta property="og:url" content="{canonical}">', h, count=1)
+              h = re.sub(r'<meta property="og:title" content="[^"]*">', f'<meta property="og:title" content="{html.escape(title)}">', h, count=1)
+              h = re.sub(r'<meta property="og:description" content="[^"]*">', f'<meta property="og:description" content="{html.escape(desc)}">', h, count=1)
+              h = re.sub(r'<meta property="og:image" content="[^"]*">', f'<meta property="og:image" content="https://hemreform.se{image}">', h, count=1)
+              h = re.sub(r'<meta name="twitter:title" content="[^"]*">', f'<meta name="twitter:title" content="{html.escape(title)}">', h, count=1)
+              h = re.sub(r'<meta name="twitter:description" content="[^"]*">', f'<meta name="twitter:description" content="{html.escape(desc)}">', h, count=1)
+              h = re.sub(r'<meta name="twitter:image" content="[^"]*">', f'<meta name="twitter:image" content="https://hemreform.se{image}">', h, count=1)
+              return '<head>' + h + extra_css + '</head>'
+
+          articles = [
+            dict(slug='badrumsrenovering-stockholm-pris', title='Vad kostar en badrumsrenovering i Stockholm?', cat='Prisguide', img='/images/projekt/apartment-v1-after.webp', desc='Prisnivåer, kostnadsdrivare och smarta beslut innan du renoverar badrum i Stockholm.', h2=['Prisnivåer för olika badrum','Vad driver kostnaden i Stockholm?','Så gör du offerten jämförbar','Vanliga frågor om badrumspris']),
+            dict(slug='koksrenovering-stockholm-pris', title='Vad kostar en köksrenovering i Stockholm?', cat='Prisguide', img='/images/projekt/apartment-k12.webp', desc='Budgetnivåer, materialval och planering för köksrenovering i Stockholm.', h2=['Tre vanliga budgetnivåer','Material och snickerier som påverkar priset','Planering i lägenhet och bostadsrätt','Vanliga frågor om kökspris']),
+            dict(slug='totalrenovering-lagenhet-stockholm-pris-per-kvm', title='Totalrenovering av lägenhet i Stockholm: pris per kvm', cat='Prisguide', img='/images/projekt/apartment-a75.webp', desc='Pris per kvadratmeter, tidsplan och prioriteringar vid totalrenovering av lägenhet i Stockholm.', h2=['Rimliga nivåer per kvadratmeter','Vad ingår i en totalrenovering?','Tidsplan och ordning','Vanliga frågor om totalrenovering']),
+            dict(slug='flytta-kok-eller-badrum-stockholm', title='Får man flytta kök eller badrum i Stockholm?', cat='Regler', img='/images/projekt/apartment-k38.webp', desc='Vad du behöver kontrollera innan du flyttar kök, badrum, vatten, avlopp eller ventilation.', h2=['Det första du måste kontrollera','Bostadsrättsförening och tekniska krav','Risker som påverkar budgeten','Vanliga frågor om att flytta kök eller badrum']),
+            dict(slug='renovera-bostadsratt-stockholm-regler', title='Renovera bostadsrätt i Stockholm: regler och checklista', cat='Bostadsrätt', img='/images/projekt/apartment-v1.webp', desc='Praktisk checklista för tillstånd, störningar, våtrum, el och ansvar i bostadsrätt.', h2=['Vad kräver styrelsens godkännande?','Dokument som gör processen smidigare','Så minskar du risken för konflikter','Vanliga frågor om bostadsrättsrenovering']),
+            dict(slug='badrumsrenovering-stockholm-checklista', title='Badrumsrenovering i Stockholm: checklista innan start', cat='Checklista', img='/images/projekt/apartment-v1-after.webp', desc='En konkret checklista för beslut, material, tidsplan och dokumentation innan badrummet rivs.', h2=['Beslut som bör vara klara före start','Tekniska punkter att kontrollera','Dokumentation och slutkontroll','Vanliga frågor om badrumsstart']),
+            dict(slug='renovera-litet-badrum-stockholm', title='Renovera litet badrum i Stockholm', cat='Små ytor', img='/images/projekt/apartment-v1-after.webp', desc='Smarta lösningar för små badrum där förvaring, ljus, dusch och mått måste samspela.', h2=['Planera varje centimeter','Material som får rummet att kännas större','Förvaring utan att rummet blir tungt','Vanliga frågor om små badrum']),
+            dict(slug='renovera-litet-kok-lagenhet-stockholm', title='Renovera litet kök i lägenhet i Stockholm', cat='Små ytor', img='/images/projekt/apartment-k12.webp', desc='Hur ett litet lägenhetskök kan bli mer funktionellt med rätt layout, snickerier och ljus.', h2=['Layout först, yta sedan','Platsbyggt och smart förvaring','När är det värt att flytta funktioner?','Vanliga frågor om små kök']),
+            dict(slug='platsbyggd-forvaring-stockholm', title='Platsbyggd förvaring i Stockholm', cat='Specialsnickeri', img='/images/projekt/norrsken-office.webp', desc='När platsbyggd förvaring lönar sig, vad som påverkar priset och hur du planerar detaljerna.', h2=['När platsbyggt gör störst skillnad','Material, fronter och detaljer','Så planerar du en bra beställning','Vanliga frågor om platsbyggd förvaring']),
+          ]
+
+          price_table = '''<table><thead><tr><th>Omfattning</th><th>Typisk nivå</th><th>Kommentar</th></tr></thead><tbody><tr><td>Mindre uppdatering</td><td>från ca 45 000 kr</td><td>Ytskikt, montering eller begränsade snickerier.</td></tr><tr><td>Normal renovering</td><td>ca 120 000-280 000 kr</td><td>Beror på yta, material, teknik och omfattning.</td></tr><tr><td>Högre ambitionsnivå</td><td>från ca 300 000 kr</td><td>Mer specialsnickeri, flytt av funktioner eller exklusiva material.</td></tr></tbody></table>'''
+
+          def body_paragraphs(article):
+              title = article['title'].lower()
+              p = []
+              p.append('I Stockholm påverkas pris och tidsplan ofta av fastighetens ålder, föreningens regler, logistik i trapphus, materialval och hur mycket som behöver samordnas mellan yrkesgrupper. En bra offert ska därför inte bara ange en totalsumma, utan även visa vad som ingår, vad som är antaget och vilka beslut som kan påverka priset senare.')
+              p.append('Börja med att samla bilder, ungefärliga mått och en kort prioriteringslista. Det gör det lättare att skilja mellan sådant som är nödvändigt, sådant som höjer kvaliteten och sådant som kan vänta. För lägenheter är det extra viktigt att kontrollera stadgar, tider för störande arbeten och om styrelsen behöver godkänna ändringar innan arbetet bokas.')
+              if 'pris' in article['slug'] or 'per-kvm' in article['slug']:
+                  p.append('Priset blir mest rättvisande när material, rivning, avfall, transporter, arbetsmoment och eventuella underentreprenörer jämförs på samma nivå. Två offerter kan se lika ut på totalsumman men ändå innehålla helt olika ansvar. Be därför alltid om tydliga rader för arbete, material och eventuella tillval.')
+              if 'badrum' in title:
+                  p.append('För badrum är tätskikt, fall, ventilation, el och dokumentation centrala punkter. Det är här man inte ska chansa. Små beslut, som duschvägg, kommodbredd och placering av handdukstork, bör vara klara tidigt eftersom de påverkar både rördragning och slutkänsla.')
+              if 'kök' in title:
+                  p.append('För kök styrs mycket av stommar, bänkskiva, el, belysning och hur väl förvaringen utnyttjar väggarna. I många Stockholmslägenheter är det smartare att förbättra layouten inom befintlig yta än att direkt flytta vatten eller ventilation.')
+              if 'platsbyggd' in title or 'förvaring' in title:
+                  p.append('Platsbyggd förvaring blir bäst när den planeras runt vardagens verkliga saker: ytterkläder, städartiklar, teknik, säsongsförvaring och sådant som annars hamnar synligt. Måtten, öppningsriktningen och materialet är lika viktiga som utseendet.')
+              p.append('Hemreform arbetar med en kontakt från första genomgång till färdigt resultat. Det gör processen enklare för dig som vill ha tydlig kommunikation, rimliga beslut i rätt ordning och ett resultat som passar bostaden i stället för att kännas standardiserat.')
+              return p
+
+          def article_html(article, i):
+              canonical = f'https://hemreform.se/blogg/{article["slug"]}/'
+              prev = articles[i-1] if i > 0 else None
+              nxt = articles[i+1] if i < len(articles)-1 else None
+              paras = body_paragraphs(article)
+              sections = ''
+              for n, h2 in enumerate(article['h2']):
+                  sections += f'<h2>{html.escape(h2)}</h2>\n'
+                  sections += f'<p>{paras[n % len(paras)]}</p>\n'
+                  if n == 0 and ('pris' in article['slug'] or 'per-kvm' in article['slug']):
+                      sections += price_table + '\n'
+                  sections += f'<p>{paras[(n+1) % len(paras)]}</p>\n'
+              faq = [
+                  ('Hur börjar man?', 'Börja med bilder, mått och en kort beskrivning av vad du vill förändra. Då går det snabbare att bedöma omfattning och nästa steg.'),
+                  ('Behöver styrelsen godkänna arbetet?', 'Vid ändringar som påverkar våtrum, ventilation, bärande delar eller installationer bör du alltid kontrollera med föreningen innan start.'),
+                  ('Kan Hemreform hjälpa på engelska?', 'Ja, teamet kan hantera dialogen på svenska eller engelska beroende på vad som passar dig bäst.'),
+              ]
+              schema = {
+                  '@context': 'https://schema.org', '@type': 'Article', 'headline': article['title'],
+                  'description': article['desc'], 'image': f'https://hemreform.se{article["img"]}',
+                  'datePublished': today, 'dateModified': today,
+                  'author': {'@type': 'Organization', 'name': 'Hemreform'},
+                  'publisher': {'@type': 'Organization', 'name': 'Hemreform', 'logo': {'@type': 'ImageObject', 'url': 'https://hemreform.se/apple-touch-icon.png'}},
+                  'mainEntityOfPage': canonical,
+              }
+              faq_schema = {'@context':'https://schema.org','@type':'FAQPage','mainEntity':[{'@type':'Question','name':q,'acceptedAnswer':{'@type':'Answer','text':a}} for q,a in faq]}
+              pager = '<div class="article-pager">'
+              pager += f'<a href="/blogg/{prev["slug"]}/"><small>Föregående artikel</small><strong>{html.escape(prev["title"])}</strong></a>' if prev else '<span><small>Föregående artikel</small><strong>Bloggstart</strong></span>'
+              pager += f'<a href="/blogg/{nxt["slug"]}/"><small>Nästa artikel</small><strong>{html.escape(nxt["title"])}</strong></a>' if nxt else '<a href="/blogg/"><small>Tillbaka</small><strong>Alla artiklar</strong></a>'
+              pager += '</div>'
+              faq_html = ''.join(f'<h2>{html.escape(q)}</h2><p>{html.escape(a)}</p>' for q,a in faq)
+              return '<!DOCTYPE html>\n<html lang="sv" data-mode="light">\n' + make_head(article['title'] + ' | Hemreform', article['desc'], canonical, article['img'], 'article') + f'''
+              <body>
+              {header_html}<main id="top" class="article">
+                <section class="section article-hero"><div class="wrap">
+                  <a class="article-back mono" href="/blogg/">Tillbaka till blogg</a>
+                  <span class="eyebrow"><span class="tick" aria-hidden="true"></span>{html.escape(article['cat'])}</span>
+                  <h1>{html.escape(article['title'])}</h1>
+                  <p>{html.escape(article['desc'])}</p>
+                  <figure><img src="{article['img']}" alt="{html.escape(article['title'])}" loading="eager"><figcaption>{html.escape(article['cat'])} · Hemreform Stockholm</figcaption></figure>
+                </div></section>
+                <section class="wrap article-body">
+                  {sections}
+                  {faq_html}
+                  <div class="article-cta"><h2>Nästa steg</h2><p>Skicka några bilder och en kort beskrivning av projektet. Vi återkommer med en tydlig nästa bedömning.</p><a href="/#kontakt" class="btn btn-primary">Berätta om ditt projekt <span class="arrow">→</span></a></div>
+                  {pager}
+                </section>
+                <script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>
+                <script type="application/ld+json">{json.dumps(faq_schema, ensure_ascii=False)}</script>
+              </main>{footer_html}
+              '''
+
+          blog_dir = root / 'blogg'
+          if blog_dir.exists():
+              for child in blog_dir.iterdir():
+                  if child.is_dir():
+                      import shutil; shutil.rmtree(child)
+          blog_dir.mkdir(exist_ok=True)
+          cards = ''
+          for i,a in enumerate(articles):
+              cards += f'''<a class="blog-card" href="/blogg/{a['slug']}/"><img src="{a['img']}" alt="{html.escape(a['title'])}" loading="lazy"><span>{html.escape(a['cat'])}</span><h2>{html.escape(a['title'])}</h2><p>{html.escape(a['desc'])}</p></a>\n'''
+              d = blog_dir / a['slug']; d.mkdir(parents=True, exist_ok=True)
+              (d / 'index.html').write_text(article_html(a, i), encoding='utf-8')
+          hub_title = 'Renoveringsblogg Stockholm | Hemreform'
+          hub_desc = 'Praktiska guider om badrum, kök, totalrenovering, bostadsrätt och platsbyggd förvaring i Stockholm.'
+          hub = '<!DOCTYPE html>\n<html lang="sv" data-mode="light">\n' + make_head(hub_title, hub_desc, 'https://hemreform.se/blogg/', '/images/featured.webp', 'website') + f'''
+          <body>{header_html}<main id="top">
+            <section class="section blog-hero"><div class="wrap"><span class="eyebrow"><span class="tick" aria-hidden="true"></span>Renoveringsblogg</span><h1 class="display">Guider för renovering i Stockholm</h1><p class="blog-lead">Djupa, praktiska guider för dig som planerar badrum, kök, totalrenovering, bostadsrättsprojekt eller platsbyggd förvaring i Stockholm.</p></div></section>
+            <section class="section blog-topics"><div class="wrap blog-grid">{cards}</div></section>
+          </main>{footer_html}
+          '''
+          (blog_dir / 'index.html').write_text(hub, encoding='utf-8')
+
+          urls = ['https://hemreform.se/', 'https://hemreform.se/blogg/'] + [f'https://hemreform.se/blogg/{a["slug"]}/' for a in articles]
+          sitemap = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+          for u in urls:
+              pr = '1.0' if u == 'https://hemreform.se/' else '0.8'
+              cf = 'weekly' if u.endswith('/blogg/') else 'monthly'
+              sitemap.append(f'  <url><loc>{u}</loc><lastmod>{today}</lastmod><changefreq>{cf}</changefreq><priority>{pr}</priority></url>')
+          sitemap.append('</urlset>')
+          (root / 'sitemap.xml').write_text('\n'.join(sitemap), encoding='utf-8')
+          (root / 'robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: https://hemreform.se/sitemap.xml\n', encoding='utf-8')
+          (root / 'README.md').write_text('# Hemreform Stockholm staging\n\nThis repository is the staging build for the Stockholm Hemreform site. Do not attach `hemreform.se` until the site has passed review.\n', encoding='utf-8')
+          PY
+
+          cat > .github/workflows/static.yml <<'YAML'
+          name: Deploy static site
+          on:
+            push:
+              branches: [main]
+            workflow_dispatch:
+          permissions:
+            contents: read
+            pages: write
+            id-token: write
+          concurrency:
+            group: pages
+            cancel-in-progress: false
+          jobs:
+            deploy:
+              environment:
+                name: github-pages
+                url: ${{ steps.deployment.outputs.page_url }}
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/configure-pages@v5
+                - uses: actions/upload-pages-artifact@v3
+                  with:
+                    path: .
+                - id: deployment
+                  uses: actions/deploy-pages@v4
+          YAML
+
+          # keep staging free of any custom domain until final approval
+          rm -f CNAME
+          find . -name '.DS_Store' -delete
+
+      - name: Commit staging build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Build Stockholm staging site"
+            git push origin HEAD:main
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy Pages
+        uses: actions/deploy-pages@v4
