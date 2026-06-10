@@ -115,3 +115,5 @@ YAML
 
       - name: Deploy Pages
         uses: actions/deploy-pages@v4
+
+# trigger: 2026-06-10
