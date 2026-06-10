@@ -1,10 +1,10 @@
-# Hemreform Göteborg blog workflow
+# Hemreform blog workflow
 
 No extra tooling is required. Each article is a static HTML page under `/blogg/<slug>/index.html`.
 
 Recommended prompt:
 
-> Create a new Hemreform Göteborg blog article about `<topic>`, use image `<image filename>`, create `/blogg/<slug>/index.html`, add it to `/blogg/index.html`, and update `sitemap.xml`.
+> Create a new Hemreform blog article about `<topic>`, use image `<image filename>`, create `/blogg/<slug>/index.html`, add it to `/blogg/index.html`, and update `sitemap.xml`.
 
 Each article should include:
 
@@ -13,4 +13,4 @@ Each article should include:
 - Article JSON-LD.
 - Open Graph image.
 - Internal links to `/`, `/#projekt`, and `/#kontakt`.
-- Local Göteborg language only where natural.
+- Local Stockholm language only where natural.

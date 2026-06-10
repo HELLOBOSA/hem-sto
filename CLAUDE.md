@@ -1,28 +1,28 @@
-# Hemreform Göteborg — Site Maintenance Guide
+# Hemreform — Site Maintenance Guide
 
 ## Overview
 
-Static site for **Hemreform**, a renovation & carpentry company in Gothenburg, Sweden.  
-Hosted on GitHub Pages, deployed from the `main` branch.  
-Domain: `goteborg.hemreform.se`
+Static site for **Hemreform**, a renovation & carpentry company in Stockholm, Sweden.
+Hosted on GitHub Pages, deployed from the `main` branch.
+Final production domain: `hemreform.se`.
 
 ---
 
 ## Deployment
 
-- **Live site deploys from `main` only.** GitHub Actions triggers on every push to `main`.
+- **Staging deploys from `main` in this repo.** GitHub Actions triggers on every push to `main`.
 - Development work goes on a feature branch (e.g., `claude/…`). Merge to `main` when ready to go live.
 - Never push directly to `main` without review if multiple people are collaborating.
+- Do not add a production `CNAME` in this staging repo until final approval.
 
 ---
 
 ## Languages
 
-The site currently serves **Swedish as default** with a client-side JavaScript switch to English  
+The site currently serves **Swedish as default** with a client-side JavaScript switch to English
 (via `data-en="…"` attributes on elements). The same URL serves both languages.
 
-**Planned:** A proper `/en/` subdirectory with separate English pages for full bilingual SEO.  
-Until that is implemented, every text change must update both:
+There are no separate English URLs. Every text change must update both:
 - The element's text node (Swedish default)
 - The `data-en="…"` attribute value (English)
 
@@ -40,23 +40,23 @@ Whenever you update any visible text, heading, paragraph, button label, or link 
 
 ## Rule: Header and footer are on every page
 
-The site has no server-side templating — header and footer HTML is duplicated across all files.  
+The site has no server-side templating — header and footer HTML is duplicated across all files.
 **When you change the header or footer on one page, you must apply the same change to all pages.**
 
 Files that each contain a full header + footer:
 - `index.html` (home page)
 - `blogg/index.html` (blog hub)
-- `blogg/badrumsrenovering-goteborg-checklista/index.html`
-- `blogg/koksrenovering-goteborg-planering/index.html`
-- `blogg/kommersiell-renovering-goteborg/index.html`
-- `blogg/maleri-goteborg-farg-ytskikt/index.html`
-- `blogg/projektledning-renovering-goteborg/index.html`
-- `blogg/renovera-lagenhet-goteborg/index.html`
-- `blogg/rot-avdrag-renovering-goteborg/index.html`
-- `blogg/specialsnickeri-forvaring-goteborg/index.html`
-- `blogg/totalrenovering-goteborg-process/index.html`
+- `blogg/badrumsrenovering-bostadsratt-stockholm/index.html`
+- `blogg/badrumsrenovering-stockholm-checklista/index.html`
+- `blogg/badrumsrenovering-stockholm-pris/index.html`
+- `blogg/koksrenovering-stockholm-planering/index.html`
+- `blogg/koksrenovering-stockholm-pris/index.html`
+- `blogg/lagenhetsrenovering-stockholm/index.html`
+- `blogg/maleri-stockholm-farg-ytskikt/index.html`
+- `blogg/specialsnickeri-stockholm/index.html`
+- `blogg/totalrenovering-stockholm-pris/index.html`
 
-Use a script (Python or sed) to batch-update repeated blocks. The footer services list,  
+Use a script (Python or sed) to batch-update repeated blocks. The footer services list,
 nav links, and contact details are identical across all files — never update just one.
 
 ---
@@ -72,7 +72,7 @@ blogg/
 images/
   projekt/                          ← Project gallery images (WebP)
 assets/                             ← CSS/JS assets if any
-CNAME                               ← goteborg.hemreform.se
+CNAME                               ← production only after approval
 sitemap.xml                         ← Update when adding new pages
 robots.txt
 ```
@@ -81,8 +81,8 @@ robots.txt
 
 ## Adding a New Blog Article
 
-1. Create a new directory under `blogg/` using a descriptive Swedish slug:  
-   e.g., `blogg/golvlaggning-goteborg-tips/`
+1. Create a new directory under `blogg/` using a descriptive Swedish slug:
+   e.g., `blogg/golvlaggning-stockholm-tips/`
 2. Copy the HTML from an existing blog article as a template.
 3. Update: `<title>`, all `<meta>` tags, `<link rel="canonical">`, the `<h1>`, body content.
 4. Add the article card to `blogg/index.html` (the blog hub grid).
@@ -99,10 +99,7 @@ Each page must have:
 - `<meta property="og:title">` and `<meta property="og:description">` — Swedish
 - `<meta name="twitter:description">` — English (for international reach)
 - `<link rel="canonical">` — exact URL of the page
-- `hreflang` tags — `sv` pointing to the Swedish URL, `en` to the English URL
-
-Until `/en/` pages exist, both hreflang tags can point to the same URL.  
-Once `/en/` exists, update hreflang on all pages to cross-reference correctly.
+- No English `hreflang` unless real English URLs exist.
 
 ---
 
@@ -126,22 +123,22 @@ The footer lists all 8 services. If services change, update the footer on all pa
 - No AI/model signatures in commit messages.
 - No "generated by", "claude", "anthropic", or similar in any committed file.
 - Short, descriptive commit messages in English.
-- If a change touches multiple files for the same logical reason (e.g., footer update),  
+- If a change touches multiple files for the same logical reason (e.g., footer update),
   bundle them in one commit with a clear message.
 
 ---
 
 ## Google Analytics
 
-Tracking ID: `G-YHHZXMK0M6` — installed on all pages via Google Tag Manager (gtag.js).  
+Tracking ID: `G-YHHZXMK0M6` — installed on all pages via Google Tag Manager (gtag.js).
 Do not remove or duplicate the `<script async src="…gtag/js?id=…">` block.
 
 ---
 
 ## Notes
 
-- The before/after image slider uses `setPointerCapture` so dragging outside the element  
-  still works. The separator line uses `calc(pct% - 1px)` to stay pixel-perfect with  
+- The before/after image slider uses `setPointerCapture` so dragging outside the element
+  still works. The separator line uses `calc(pct% - 1px)` to stay pixel-perfect with
   the `clip-path` boundary. Do not change this to pixel-based positioning.
 - `lang="sv"` on `<html>` enables CSS `hyphens: auto` for Swedish word breaking.
 - Mobile breakpoints: 480px (nav), 720px (services + footer), 860px (grid), 940px (gallery).
