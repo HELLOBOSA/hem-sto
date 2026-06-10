@@ -1,0 +1,117 @@
+name: Bootstrap staging copy
+
+on:
+  push:
+    paths:
+      - '.github/workflows/bootstrap-copy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy source into staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/HELLOBOSA/hem-got.git /tmp/hem-got
+          find "$PWD" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          rsync -a --exclude='.git' --exclude='CNAME' /tmp/hem-got/ ./
+          rm -f CNAME
+          rm -rf .github/workflows
+          mkdir -p .github/workflows
+          python3 <<'PY'
+from pathlib import Path
+import re
+replacements = [
+    ('goteborg.hemreform.se', 'hemreform.se'),
+    ('goteborg', 'stockholm'),
+    ('Goteborg', 'Stockholm'),
+    ('GOTEBORG', 'STOCKHOLM'),
+    ('Göteborg', 'Stockholm'),
+    ('Gothenburg', 'Stockholm'),
+    ('Kungsportsavenyen 21, 411 36', 'Kungsgatan 9, 111 43'),
+    ('Kungsportsavenyen 21', 'Kungsgatan 9'),
+    ('411 36 Stockholm', '111 43 Stockholm'),
+    ('411 36', '111 43'),
+    ('Västra Götaland', 'Stockholms län'),
+    ('SE-O', 'SE-AB'),
+]
+for p in Path('.').rglob('*'):
+    if not p.is_file() or p.suffix.lower() not in {'.html','.xml','.txt','.md','.css','.js','.json'}:
+        continue
+    s = p.read_text(encoding='utf-8', errors='ignore')
+    for a,b in replacements:
+        s = s.replace(a,b)
+    s = re.sub(r'\n<link rel="alternate" hreflang="en"[^\n]*>', '', s)
+    s = re.sub(r'\n<meta property="og:locale:alternate"[^\n]*>', '', s)
+    p.write_text(s, encoding='utf-8')
+Path('README.md').write_text('# Hemreform Stockholm staging\n\nStaging copy for Stockholm. No custom domain is attached here yet.\n', encoding='utf-8')
+Path('robots.txt').write_text('User-agent: *\nAllow: /\nSitemap: https://hemreform.se/sitemap.xml\n', encoding='utf-8')
+PY
+          cat > .github/workflows/static.yml <<'YAML'
+name: Deploy static site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
+YAML
+          rm -f CNAME
+          find . -name '.DS_Store' -delete
+
+      - name: Commit staging files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Copy Stockholm staging files"
+            git push origin HEAD:main
+          fi
+
+      - name: Deploy staging Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy Pages
+        uses: actions/deploy-pages@v4
