@@ -1,0 +1,79 @@
+name: Apply staging path and handle fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fix GitHub Pages project paths and before-after handle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          perl -0pi -e 's#href="/favicon\.ico#href="favicon.ico#g; s#href="/apple-touch-icon\.png#href="apple-touch-icon.png#g; s#href="/blogg/"#href="blogg/"#g; s#href="/\##href="#g; s#src="/images/#src="images/#g; s#data-full="/images/#data-full="images/#g' index.html
+
+          perl -0pi -e 's#href="/favicon\.ico#href="../favicon.ico#g; s#href="/apple-touch-icon\.png#href="../apple-touch-icon.png#g; s#href="/\##href="../#g; s#href="/blogg/([^"/]+)/"#href="$1/"#g; s#href="/blogg/"#href="./"#g; s#src="/images/#src="../images/#g; s#data-full="/images/#data-full="../images/#g' blogg/index.html
+
+          perl -0pi -e 's#href="/favicon\.ico#href="../../favicon.ico#g; s#href="/apple-touch-icon\.png#href="../../apple-touch-icon.png#g; s#href="/\##href="../../#g; s#href="/blogg/([^"/]+)/"#href="../$1/"#g; s#href="/blogg/"#href="../"#g; s#src="/images/#src="../../images/#g; s#data-full="/images/#data-full="../../images/#g' blogg/*/index.html
+
+          perl -0pi -e 's@href="\.\./(top|tjanster|process|omfattning|projekt|kontakt)"@href="../#$1"@g; s@href="\.\./\.\./(top|tjanster|process|omfattning|projekt|kontakt)"@href="../../#$1"@g' blogg/index.html blogg/*/index.html
+
+          perl -0pi -e 's#(\.pj-ba-line::after \{[^}]*?height: 42px;)( border-radius)#${1} font-size: 26px; line-height: 1;${2}#g' index.html blogg/index.html blogg/*/index.html
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse, unquote
+          root = Path('.').resolve()
+          base = 'https://hellobosa.github.io/hem-sto/'
+          pages = [Path('index.html'), Path('blogg/index.html')] + sorted(Path('blogg').glob('*/index.html'))
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.refs = []
+              def handle_starttag(self, tag, attrs):
+                  for k, v in attrs:
+                      if k in ('href', 'src', 'data-full'):
+                          self.refs.append((k, v))
+          errors = []
+          for page in pages:
+              parser = Parser(); parser.feed(page.read_text(encoding='utf-8'))
+              page_url = base if page == Path('index.html') else urljoin(base, str(page.parent) + '/')
+              for k, ref in parser.refs:
+                  if ref.startswith(('http://', 'https://', 'mailto:', 'tel:', '#')):
+                      continue
+                  abs_url = urljoin(page_url, ref)
+                  parsed = urlparse(abs_url)
+                  if not parsed.path.startswith('/hem-sto/'):
+                      errors.append(f'{page}: {k}={ref} -> {parsed.path}')
+                      continue
+                  rel = unquote(parsed.path[len('/hem-sto/'):]).split('#', 1)[0]
+                  if rel.endswith('/'):
+                      rel += 'index.html'
+                  if rel and not (root / rel).exists():
+                      errors.append(f'{page}: missing {k}={ref} -> {rel}')
+          if errors:
+              raise SystemExit('\n'.join(errors[:80]))
+          PY
+
+          if rg 'href="/|src="/|data-full="/|href="\.\./(top|tjanster|process|omfattning|projekt|kontakt)|href="\.\./\.\./(top|tjanster|process|omfattning|projekt|kontakt)' index.html blogg/index.html blogg/*/index.html; then
+            echo 'Root or malformed anchor paths remain.'
+            exit 1
+          fi
+
+          rm -f .github/workflows/apply-staging-fixes.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html blogg .github/workflows/apply-staging-fixes.yml
+          git commit -m "Fix staging paths and before-after handle"
+          git push
