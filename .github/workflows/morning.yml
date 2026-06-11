@@ -1,0 +1,26 @@
+name: Morning ping
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 06:00 Europe/Stockholm (UTC+2 summer)
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send morning email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "Good morning — start Claude session"
+          to: estudioeolos@gmail.com
+          from: Hemreform Bot
+          body: |
+            Good morning!
+
+            Open Claude Code to start today's session.
+            https://claude.ai/code
