@@ -19,19 +19,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://hemreform.se/blogg/badrumsrenovering-stockholm-checklista/</loc>
-    <lastmod>2026-06-11</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://hemreform.se/blogg/badrumsrenovering-stockholm-pris/</loc>
-    <lastmod>2026-06-11</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://hemreform.se/blogg/koksrenovering-stockholm-planering/</loc>
     <lastmod>2026-06-11</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -49,12 +37,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://hemreform.se/blogg/maleri-stockholm-farg-ytskikt/</loc>
-    <lastmod>2026-06-11</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
     <loc>https://hemreform.se/blogg/specialsnickeri-stockholm/</loc>
     <lastmod>2026-06-11</lastmod>
     <changefreq>monthly</changefreq>
@@ -62,6 +44,24 @@
   </url>
   <url>
     <loc>https://hemreform.se/blogg/totalrenovering-stockholm-pris/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://hemreform.se/blogg/bygglov-anmalan-renovering-stockholm/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://hemreform.se/blogg/koksrenovering-bostadsratt-stockholm/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://hemreform.se/blogg/sekelskifteslagenhet-renovering-stockholm/</loc>
     <lastmod>2026-06-11</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
